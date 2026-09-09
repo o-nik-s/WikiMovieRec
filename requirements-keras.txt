@@ -1,0 +1,5 @@
+# TensorFlow/Keras зависимости для Python 3.12
+# Используется для обучения моделей Keras
+
+tensorflow>=2.10
+keras>=3.15

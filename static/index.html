@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WikiMovieRec</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎬</text></svg>">
+<link rel="stylesheet" href="/static/style.css?v=11">
+</head>
+<body>
+<header>
+<div id="brand"><span id="title">WikiMovieRec</span></div>
+<div id="controls">
+<button id="langToggle" class="ctrl-btn">EN</button>
+</div>
+</header>
+
+<main>
+<section id="profile-section" class="card">
+<div class="section-header">
+<h2 id="profileTitle">My Taste</h2>
+<button id="profileToggle" class="toggle-btn" title="Show/hide">▾</button>
+</div>
+<div id="profileBody">
+<p id="profileDesc">Add favorite movies to learn your taste.</p>
+<div id="profileStatus" class="status-text"></div>
+<div class="input-row">
+<input type="text" id="profileInput" placeholder="Type movie name...">
+<button id="profileAdd" class="btn-primary">+</button>
+</div>
+<div id="profileList" class="tag-list"></div>
+</div>
+</section>
+
+<section id="discover-section" class="card discover">
+<h2 id="discoverTitle">Surprise Me!</h2>
+<div class="filter-box">
+<div class="filter-group">
+<span class="filter-label" id="yearLabel">Year range:</span>
+<div class="year-preset-row">
+<label class="radio-label"><input type="radio" name="yr" value="all" checked><span id="yrAll">All</span></label>
+<label class="radio-label"><input type="radio" name="yr" value="1950"><span id="yr1950"></span></label>
+<label class="radio-label"><input type="radio" name="yr" value="1980"><span id="yr1980"></span></label>
+<label class="radio-label"><input type="radio" name="yr" value="2000"><span id="yr2000"></span></label>
+<label class="radio-label"><input type="radio" name="yr" value="2010"><span id="yr2010"></span></label>
+<label class="radio-label"><input type="radio" name="yr" value="2020"><span id="yr2020"></span></label>
+<label class="radio-label"><input type="radio" name="yr" value="current"><span id="yrCurrent"></span></label>
+</div>
+<div class="year-custom-row">
+<input type="number" id="yearMin" placeholder="From" min="1900" max="2030">
+<span class="year-sep">–</span>
+<input type="number" id="yearMax" placeholder="To" min="1900" max="2030">
+</div>
+</div>
+</div>
+<div class="filter-group">
+<span class="filter-label" id="genreLabel">Genre:</span>
+<select id="genreSelect" class="filter-select">
+<option value="">All genres</option>
+</select>
+</div>
+<div class="filter-group">
+<span class="filter-label" id="ratingLabel">Min rating:</span>
+<div class="rating-inputs">
+<input type="number" id="minRating" placeholder="0-10" min="0" max="10" step="0.1">
+</div>
+</div>
+<div class="divider"></div>
+<div class="search-row">
+<input type="text" id="searchInput" placeholder="Find movie or get surprise..." autofocus>
+<button id="searchGo" class="btn-primary">🔍</button>
+<button id="surpriseGo" class="btn-secondary" title="Surprise me">🎲</button>
+</div>
+<div id="searchResult" class="result-area"></div>
+</section>
+
+<section id="result-section" class="hidden">
+<div class="card result-card">
+<div class="result-header">
+<h2 id="resultMovie"></h2>
+<button id="resultClose" class="btn-text">✕</button>
+</div>
+<p id="resultSub" class="result-sub"></p>
+<div id="resultSimilar" class="similar-list"></div>
+<div class="pagination-controls" id="paginationControls">
+<button id="pageNext" class="pagination-btn" title="Next page">→</button>
+</div>
+</div>
+</section>
+</main>
+
+<div id="flash" class="flash-msg"></div>
+
+<script>
+const API = window.location.origin;
+const CURRENT_YEAR = new Date().getFullYear();
+// How many results the table requests (top_k). Dice pool = 3x this, auto-computed.
+const TABLE_TOP_K = 240;
+const DICE_POOL_MULT = 3;
+const STATE = {
+lang: localStorage.getItem('wm_lang') || 'en',
+profile: JSON.parse(localStorage.getItem('wm_profile') || '[]'),
+skipped: JSON.parse(localStorage.getItem('wm_skipped') || '[]'),
+currentMovie: null,
+};
+
+const T = {
+en: {
+title: 'WikiMovieRec',
+profileTitle: 'Taste Profile',
+profileDesc: 'Add favorite movies to learn your taste.',
+profileEmpty: 'No movies yet.',
+profileCount: (n) => n + ' movie' + (n !== 1 ? 's' : '') + ' in your profile',
+profileInput: 'Type movie name...',
+discoverTitle: 'Find movies',
+yearLabel: 'Year range:',
+yrAll: 'All', fromYear: (y) => `${y}+`, currentYear: (y) => `${y}+`,
+searchPlaceholder: 'Find movie or get surprise...',
+surprise: '🎲',
+similarTitle: (n) => 'Similar to "' + n + '"',
+similarityHeader: 'Similarity',
+similarityTooltip: 'Higher = more similar',
+yearHeader: 'Year', ratingHeader: 'Rating', genresHeader: 'Genres',
+noResults: 'Nothing found.',
+loading: 'Searching...',
+like: 'Like', skip: 'Skip (hide from results)',
+added: (m) => '✓ ' + m,
+removed: (m) => '✕ ' + m,
+surpriseRec: 'Based on your taste',
+genreLabel: 'Genre:',
+ratingLabel: 'Min rating:',
+allGenres: 'All genres',
+		resultsWord: (n) => n + ' result' + (n !== 1 ? 's' : ''),
+		prevPage: 'Previous page',
+		nextPage: 'Next page',
+},
+ru: {
+title: 'WikiMovieRec',
+profileTitle: 'Профиль вкуса',
+profileDesc: 'Добавьте любимые фильмы для персонализированных рекомендаций.',
+profileEmpty: 'Пока пусто.',
+profileCount: (n) => { const a = n % 10, b = n % 100; const f = (a===1 && b!==11)?'':'a'+(a<5 && (b<10||b>=20)?'':'ов'); return n+' фильм'+f; },
+profileInput: 'Введите название фильма...',
+discoverTitle: 'Найти фильмы',
+yearLabel: 'Диапазон лет:',
+yrAll: 'Все', fromYear: (y) => `С ${y}`, currentYear: (y) => `С ${y}`,
+searchPlaceholder: 'Найти фильм или случайно...',
+surprise: '🎲',
+similarTitle: (n) => 'Похоже на "' + n + '"',
+similarityHeader: 'Похожесть',
+similarityTooltip: 'Больше — похожее',
+yearHeader: 'Год', ratingHeader: 'Оценка', genresHeader: 'Жанры',
+noResults: 'Ничего не найдено.',
+loading: 'Ищем...',
+like: 'Нравится', skip: 'Пропуск',
+added: (m) => '✓ ' + m,
+removed: (m) => '✕ ' + m,
+surpriseRec: 'По вашему вкусу',
+genreLabel: 'Жанр:',
+ratingLabel: 'Рейтинг:',
+allGenres: 'Все жанры',
+		resultsWord: (n) => { const a = n % 10, b = n % 100; const f = (a===1 && b!==11)?'':(a>=2 && a<=4 && (b<10||b>=20))?'a':'ов'; return n + ' результат' + f; },
+		prevPage: 'Предыдущая страница',
+		nextPage: 'Следующая страница',
+},
+};
+
+function tr(key, ...args) {
+const fn = T[STATE.lang][key];
+return typeof fn === 'function' ? fn(...args) : fn;
+}
+
+// Pagination state
+const PAGINATION = { page: 0, perPage: 12, allResults: [], title: '' };
+
+function saveProfile() { localStorage.setItem('wm_profile', JSON.stringify(STATE.profile)); }
+function saveSkipped() { localStorage.setItem('wm_skipped', JSON.stringify(STATE.skipped)); }
+function saveLang() { localStorage.setItem('wm_lang', STATE.lang); }
+
+function fmtName(n) {
+return (n || '').replace(/\s*\([^)]*film[^)]*\)\s*/gi, '').trim();
+}
+
+// Display name depends on UI language: RU interface -> Russian name (if known),
+// EN interface -> Latin (English) name.
+function displayName(name, ruName) {
+if (STATE.lang === 'ru' && ruName && ruName !== name) return fmtName(ruName);
+return fmtName(name);
+}
+
+async function ensureRuNames(names) {
+const missing = names.filter(n => !_ruCache[n]);
+if (missing.length === 0) return;
+try {
+const r = await fetch(API + '/api/ru-names?names=' + encodeURIComponent(missing.join(',')) + '&lang=' + STATE.lang);
+const data = await r.json();
+if (data.names) Object.assign(_ruCache, data.names);
+} catch(e) {}
+}
+
+async function updateProfileUI() {
+await ensureRuNames(STATE.profile);
+const list = $(`profileList`);
+const status = $(`profileStatus`);
+list.innerHTML = '';
+if (STATE.profile.length === 0) {
+status.textContent = tr('profileEmpty');
+} else {
+status.textContent = tr('profileCount', STATE.profile.length);
+STATE.profile.forEach(name => {
+const tag = document.createElement('span');
+tag.className = 'tag';
+	tag.textContent = displayName(name, getRU(name));
+tag.title = name;
+tag.onclick = () => {
+STATE.profile = STATE.profile.filter(m => m !== name);
+saveProfile(); updateProfileUI();
+	flash(tr('removed', displayName(name, getRU(name))));
+};
+list.appendChild(tag);
+});
+}
+}
+
+function getRU(name) {
+// Check cached RU names from API responses
+if (_ruCache[name]) return _ruCache[name];
+return name;
+}
+const _ruCache = {};
+
+function $(id) { return document.getElementById(id); }
+
+function flash(msg) {
+const el = $('flash');
+el.textContent = msg;
+el.classList.add('show');
+setTimeout(() => el.classList.remove('show'), 2000);
+}
+
+function getFilterParams() {
+const yr = getYearRange();
+const genre = $('genreSelect')?.value || null;
+const minRating = $('minRating')?.value ? parseFloat($('minRating').value) : null;
+return { yr, genre, minRating };
+}
+
+function getYearRange() {
+const yr = document.querySelector('input[name="yr"]:checked').value;
+if (yr !== 'all') {
+const yearFrom = yr === 'current' ? CURRENT_YEAR : parseInt(yr);
+return { year_from: yearFrom, year_to: null };
+}
+const min = $('yearMin')?.value;
+const max = $('yearMax')?.value;
+return {
+year_from: min ? parseInt(min) : null,
+year_to: max ? parseInt(max) : null,
+};
+}
+
+async function callSearch(q) {
+const r = await fetch(API + '/api/search?q=' + encodeURIComponent(q) + '&lang=' + STATE.lang);
+return (await r.json()).matches || [];
+}
+
+async function callSimilar(name, yr, genre, minRating) {
+	const p = new URLSearchParams({ movie: name, top_k: TABLE_TOP_K, lang: STATE.lang });
+if (yr.year_from) p.set('year_from', yr.year_from);
+if (yr.year_to) p.set('year_to', yr.year_to);
+if (genre) p.set('genres', genre);
+if (minRating) p.set('min_rating', minRating);
+const r = await fetch(API + '/api/similar?'+p);
+return (await r.json()).similar || [];
+}
+
+async function callProfile(movies, top_k, yr, genre, minRating) {
+const p = new URLSearchParams({ movies: movies.join(','), top_k: top_k || 12 });
+if (yr.year_from) p.set('year_from', yr.year_from);
+if (yr.year_to) p.set('year_to', yr.year_to);
+if (genre) p.set('genres', genre);
+if (minRating) p.set('min_rating', minRating);
+p.set('lang', STATE.lang);
+const r = await fetch(API + '/api/profile?'+p);
+return await r.json();
+}
+
+async function handleSearch(q) {
+const area = $('searchResult');
+area.textContent = tr('loading');
+const { yr, genre, minRating } = getFilterParams();
+	try {
+		if (!q || !q.trim()) {
+			if (STATE.profile.length > 0) {
+				const data = await callProfile(STATE.profile, TABLE_TOP_K, yr, genre, minRating);
+				if (data.similar.length > 0) {
+					renderResults(tr('surpriseRec'), data.similar);
+					area.textContent = '';
+					$('result-section').scrollIntoView({ behavior: 'smooth' });
+				} else {
+					area.textContent = tr('noResults');
+				}
+			} else {
+				area.textContent = 'Add movies to your profile first.';
+			}
+			return;
+		}
+		const matches = await callSearch(q.trim());
+		if (matches.length > 0) {
+			const top = matches[0];
+			_ruCache[top.name] = top.display_name || top.name;
+			const similar = await callSimilar(top.name, yr, genre, minRating);
+			similar.forEach(s => { if (s.ru_name) _ruCache[s.name] = s.ru_name; });
+			renderResults(top.name, similar);
+			$('result-section').scrollIntoView({ behavior: 'smooth' });
+			area.textContent = '';
+		} else {
+			// Try with Russian name mapping
+			const ruMatches = await callSearch(q.trim() + ' (фильм)');
+			if (ruMatches.length > 0) {
+				const top = ruMatches[0];
+				_ruCache[top.name] = top.display_name || top.name;
+				const similar = await callSimilar(top.name, yr, genre, minRating);
+				similar.forEach(s => { if (s.ru_name) _ruCache[s.name] = s.ru_name; });
+				renderResults(top.name, similar);
+				$('result-section').scrollIntoView({ behavior: 'smooth' });
+				area.textContent = '';
+			} else {
+				area.textContent = tr('noResults');
+			}
+		}
+	} catch (e) {
+		console.error('Search failed:', e);
+		area.textContent = tr('noResults');
+	}
+}
+
+function pickWeightedSample(items, k) {
+if (items.length <= k) return items;
+let pool = [...items];
+const sel = [];
+const ws = pool.map(i => i.similarity || 0);
+let tot = ws.reduce((a, b) => a + b, 0);
+for (let s = 0; s < k && pool.length > 0; s++) {
+const r = Math.random() * tot;
+let cum = 0;
+for (let i = 0; i < pool.length; i++) {
+cum += ws[i];
+if (cum >= r) {
+const [picked] = pool.splice(i, 1);
+ws.splice(i, 1);
+tot -= picked.similarity || 0;
+sel.push(picked);
+break;
+}
+}
+}
+return sel;
+}
+
+async function callProfileSample(movies, sample_n, yr, genre, minRating) {
+	const p = new URLSearchParams({ movies: movies.join(','), sample_n: sample_n || 12, pool_size: TABLE_TOP_K * DICE_POOL_MULT, sharpness: 30 });
+if (yr.year_from) p.set('year_from', yr.year_from);
+if (yr.year_to) p.set('year_to', yr.year_to);
+if (genre) p.set('genres', genre);
+if (minRating) p.set('min_rating', minRating);
+p.set('lang', STATE.lang);
+// Cache-buster: the dice endpoint returns a random sample, so each roll
+// must bypass the browser's GET cache or repeated rolls show the same list.
+p.set('_t', Date.now() + '-' + Math.random().toString(36).slice(2));
+const r = await fetch(API + '/api/profile-sample?'+p);
+return await r.json();
+}
+
+async function handleSurprise() {
+const area = $('searchResult');
+area.textContent = tr('loading');
+const { yr, genre, minRating } = getFilterParams();
+// If a movie is currently open, the dice must use that movie as a
+// one-item profile. Otherwise it uses the saved taste profile.
+const sourceMovies = STATE.currentMovie ? [STATE.currentMovie] : STATE.profile;
+if (sourceMovies.length === 0) {
+area.textContent = 'Add movies to your profile first.';
+return;
+}
+try {
+const data = await callProfileSample(sourceMovies, 12, yr, genre, minRating);
+if (data.similar && data.similar.length > 0) {
+data.similar.forEach(s => { if (s.ru_name) _ruCache[s.name] = s.ru_name; });
+data.similar.sort((a, b) => (b.similarity || 0) - (a.similarity || 0));
+const title = sourceMovies.length === 1
+? sourceMovies[0]
+: tr('surpriseRec');
+STATE.currentMovie = sourceMovies.length === 1 ? sourceMovies[0] : null;
+renderResults(title, data.similar, true);
+area.textContent = '';
+$('result-section').scrollIntoView({ behavior: 'smooth' });
+} else {
+area.textContent = tr('noResults');
+}
+} catch(e) {
+area.textContent = tr('noResults');
+}
+}
+
+function renderResults(title, similar, fromSurprise) {
+const sec = $('result-section');
+const movieEl = $('resultMovie');
+const subEl = $('resultSub');
+const listEl = $('resultSimilar');
+
+similar = similar.filter(item => !STATE.skipped.includes(item.name));
+sec.classList.remove('hidden');
+	movieEl.textContent = displayName(title, _ruCache[title]);
+if (!fromSurprise) STATE.currentMovie = title;
+
+if (similar.length === 0) {
+subEl.textContent = tr('noResults');
+listEl.innerHTML = '';
+$('paginationControls').style.display = 'none';
+return;
+}
+
+// Sort by similarity descending (highest first)
+similar.sort((a, b) => (b.similarity || 0) - (a.similarity || 0));
+
+// Store all results for pagination
+PAGINATION.allResults = similar;
+PAGINATION.title = title;
+PAGINATION.page = 0;
+
+	subEl.textContent = tr('similarTitle', displayName(title, _ruCache[title]));
+renderPaginatedResults();
+
+listEl.querySelectorAll('.sim-row').forEach(row => {
+row.onclick = () => {
+$('searchInput').value = row.dataset.name;
+handleSearch(row.dataset.name);
+};
+});
+
+// Pagination controls
+function renderPaginatedResults() {
+const listEl = $('resultSimilar');
+const items = PAGINATION.allResults;
+const start = PAGINATION.page * PAGINATION.perPage;
+const end = start + PAGINATION.perPage;
+const page = items.slice(start, end);
+const totalPages = Math.ceil(items.length / PAGINATION.perPage);
+
+listEl.innerHTML = '<table class="sim-table">' +
+'<thead><tr><th>#</th><th></th><th>' + tr('yearHeader') + '</th><th title="' + tr('ratingHeader') + '">★</th><th>' + tr('genresHeader') + '</th><th title="' + tr('similarityTooltip') + '">' + tr('similarityHeader') + '</th></tr></thead>' +
+'<tbody>' + page.map((s, i) => {
+const idx = start + i + 1;
+const genres = (s.genres || []).join(', ');
+const year = s.year || '';
+const rating = s.rating != null ? s.rating.toFixed(1) : '';
+const sim = (s.similarity != null ? s.similarity.toFixed(4) : (s.distance != null ? s.distance.toFixed(4) : ''));
+	const dn = displayName(s.name, s.ru_name);
+return `<tr class="sim-row" data-name="${s.name}">
+<td class="sim-rank">${idx}</td>
+	<td class="sim-name">${dn}</td>
+<td class="sim-year">${year}</td>
+<td class="sim-rating">${rating}</td>
+<td class="sim-genres">${genres}</td>
+<td class="sim-dist">${sim}</td>
+</tr>`;
+}).join('') + '</tbody></table>';
+
+// Pagination controls
+const controls = $('paginationControls');
+if (totalPages > 1) {
+			const cur = PAGINATION.page;
+			const pages = [];
+			const addPage = (p) => pages.push(
+				`<button class="pagination-btn page-num${p === cur ? ' active' : ''}" data-page="${p}">${p + 1}</button>`
+			);
+			const addDots = () => pages.push(`<span class="page-dots">…</span>`);
+			if (totalPages <= 7) {
+				for (let p = 0; p < totalPages; p++) addPage(p);
+			} else {
+				addPage(0);
+				if (cur > 2) addDots();
+				const lo = Math.max(1, cur - 1);
+				const hi = Math.min(totalPages - 2, cur + 1);
+				for (let p = lo; p <= hi; p++) addPage(p);
+				if (cur < totalPages - 3) addDots();
+				addPage(totalPages - 1);
+			}
+			controls.innerHTML =
+				`<span class="page-count">${tr('resultsWord', items.length)}</span>` +
+				`<button class="pagination-btn" id="pagePrev" ${cur === 0 ? 'disabled' : ''} title="${tr('prevPage')}">←</button>` +
+				pages.join('') +
+				`<button class="pagination-btn" id="pageNext" ${cur >= totalPages - 1 ? 'disabled' : ''} title="${tr('nextPage')}">→</button>`;
+			controls.querySelectorAll('.page-num').forEach(btn => {
+				btn.onclick = () => { PAGINATION.page = parseInt(btn.dataset.page, 10); renderPaginatedResults(); };
+			});
+			const nextBtn = $('pageNext');
+			const prevBtn = $('pagePrev');
+			if (nextBtn) nextBtn.onclick = () => { if (PAGINATION.page < totalPages - 1) { PAGINATION.page++; renderPaginatedResults(); } };
+			if (prevBtn) prevBtn.onclick = () => { if (PAGINATION.page > 0) { PAGINATION.page--; renderPaginatedResults(); } };
+controls.style.display = 'flex';
+} else {
+controls.style.display = 'none';
+}
+
+// Re-attach row click handlers
+listEl.querySelectorAll('.sim-row').forEach(row => {
+row.onclick = () => {
+$('searchInput').value = row.dataset.name;
+handleSearch(row.dataset.name);
+};
+});
+
+}
+}
+
+function applyLang() {
+const t = T[STATE.lang];
+$('title').textContent = t.title;
+$('profileTitle').textContent = t.profileTitle;
+$('profileDesc').textContent = t.profileDesc;
+$('profileInput').placeholder = t.profileInput;
+$('discoverTitle').textContent = t.discoverTitle;
+$('yearLabel').textContent = t.yearLabel;
+$('yrAll').textContent = t.yrAll;
+$('yr1980').textContent = t.fromYear(1980);
+$('yr1950').textContent = t.fromYear(1950);
+$('yr2000').textContent = t.fromYear(2000);
+$('yr2010').textContent = t.fromYear(2010);
+$('yr2020').textContent = t.fromYear(2020);
+$('yrCurrent').textContent = t.currentYear(CURRENT_YEAR);
+$('searchInput').placeholder = t.searchPlaceholder;
+$('langToggle').textContent = STATE.lang === 'en' ? 'RU' : 'EN';
+$('genreLabel').textContent = t.genreLabel;
+$('ratingLabel').textContent = t.ratingLabel;
+document.querySelector('#genreSelect option:first-child').textContent = t.allGenres;
+updateProfileUI();
+// Re-render results so movie names follow the new UI language
+if (PAGINATION.allResults.length > 0) {
+renderPaginatedResults();
+const subEl = $('resultSub');
+if (subEl && PAGINATION.title) subEl.textContent = tr('similarTitle', displayName(PAGINATION.title, _ruCache[PAGINATION.title]));
+const movieEl = $('resultMovie');
+if (movieEl && PAGINATION.title) movieEl.textContent = displayName(PAGINATION.title, _ruCache[PAGINATION.title]);
+}
+const tableHeaders = document.querySelectorAll('.sim-table thead th');
+if (tableHeaders.length >= 6) {
+tableHeaders[2].textContent = t.yearHeader;
+tableHeaders[3].textContent = '★';
+tableHeaders[3].title = t.ratingHeader;
+tableHeaders[4].textContent = t.genresHeader;
+tableHeaders[5].textContent = t.similarityHeader;
+tableHeaders[5].title = t.similarityTooltip;
+}
+}
+
+$('langToggle').onclick = () => {
+STATE.lang = STATE.lang === 'en' ? 'ru' : 'en';
+saveLang(); applyLang();
+};
+
+$('profileToggle').onclick = () => {
+$('profileBody').classList.toggle('hidden');
+$('profileToggle').textContent = $('profileBody').classList.contains('hidden') ? '▸' : '▾';
+};
+
+$('profileAdd').onclick = async () => {
+const input = $('profileInput');
+const q = input.value.trim();
+if (!q) return;
+const matches = await callSearch(q);
+if (matches.length > 0) {
+const name = matches[0].name;
+_ruCache[name] = matches[0].ru_name || matches[0].display_name || name;
+if (!STATE.profile.includes(name)) {
+STATE.profile.push(name);
+saveProfile();
+updateProfileUI();
+flash(tr('added', fmtName(getRU(name))));
+}
+input.value = '';
+}
+};
+
+$('profileInput').onkeydown = async (e) => {
+if (e.key === 'Enter') $('profileAdd').click();
+};
+
+$('searchGo').onclick = () => {
+handleSearch($('searchInput').value.trim());
+};
+
+$('surpriseGo').onclick = () => {
+handleSurprise();
+};
+
+$('searchInput').onkeydown = (e) => {
+if (e.key === 'Enter') handleSearch($('searchInput').value.trim());
+};
+
+$('resultClose').onclick = () => {
+$('result-section').classList.add('hidden');
+};
+
+// Year preset radio sync with custom range
+document.querySelectorAll('input[name="yr"]').forEach(r => {
+r.onchange = () => {
+if (r.value !== 'all') {
+$('yearMin').value = getYearRange().year_from;
+$('yearMax').value = '';
+} else {
+$('yearMin').value = '';
+$('yearMax').value = '';
+}
+};
+});
+
+updateProfileUI();
+applyLang();
+loadGenres();
+
+async function loadGenres() {
+try {
+const r = await fetch(API + '/api/genres');
+const data = await r.json();
+const sel = $('genreSelect');
+if (sel && data.genres) {
+sel.innerHTML = '<option value="">All genres</option>';
+data.genres.forEach(g => {
+const opt = document.createElement('option');
+opt.value = g;
+opt.textContent = g;
+sel.appendChild(opt);
+});
+sel.onchange = () => {
+const q = $('searchInput').value.trim();
+if (q) handleSearch(q);
+};
+}
+} catch(e) {}
+}
+</script>
+</body>
+</html>

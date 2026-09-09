@@ -1,0 +1,69 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+*.whl
+
+# Environments
+.venv/
+.venv-py12/
+.venv-py13/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+Thumbs.DB
+.DS_Store
+
+# Data (large)
+wp_movies_10k.ndjson
+wiki_movie_plots_deduped.csv
+data/imdb/
+models/
+
+# Artifacts
+*.pkl
+*.h5
+*.keras
+*.pb
+
+# Logs & temp
+*.log
+tmp_out.txt
+tmp_bench.py
+tmp_estimate.py
+logs/
+.kilo/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Временные/одноразовые скрипты
+build_title_catalog.py
+update_titles.py
+wikidata_titles.py
+train_server.py
+tmp_bench.py
+tmp_estimate.py
+
+# Документы (отчёты, презентации)
+*.docx
+*.pptx
+project_review_report.md
+
+# Notebooks
+.ipynb_checkpoints/

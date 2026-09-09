@@ -1,0 +1,23 @@
+# Конфигурация для разработки
+
+server:
+  host: "127.0.0.1"
+  port: 8000
+  workers: 1
+  reload: true
+
+model:
+  preset: "fast"
+  backend: "keras"
+  source: "imdb"
+
+data:
+  imdb_dir: "./data/imdb"
+  models_dir: "./models"
+  logs_dir: "./logs"
+
+logging:
+  level: "DEBUG"
+  file: "./logs/api.log"
+  max_size: "10MB"
+  backup_count: 5

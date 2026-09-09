@@ -1,0 +1,23 @@
+# Конфигурация для продакшн сервера
+
+server:
+  host: "0.0.0.0"
+  port: 5041
+  workers: 4
+  reload: false
+
+model:
+  preset: "fast"
+  backend: "keras"
+  source: "imdb"
+
+data:
+  imdb_dir: "./data/imdb"
+  models_dir: "./models"
+  logs_dir: "./logs"
+
+logging:
+  level: "INFO"
+  file: "./logs/api.log"
+  max_size: "10MB"
+  backup_count: 5
