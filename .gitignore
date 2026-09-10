@@ -38,8 +38,7 @@ models/
 PLAN_STATUS.md
 project_review_report.md
 
-# Сборщик данных (временные файлы)
-collect_wiki_movies.py
+# Сборщик данных (только временные файлы; сам скрипт в git)
 collect_wiki_movies.py.bak
 collect_wiki_movies.py.new
 collect_log.txt
