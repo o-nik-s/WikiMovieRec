@@ -40,7 +40,8 @@ BEST_MOVIES = [
 COUNT_RATING_MOVIES = 10
 RATING_COLUMN = "Rating3"
 # Data
-NDJSON_PATH = "wp_movies_10k.ndjson"
+import os as _os
+NDJSON_PATH = _os.environ.get("WIKIMODREC_NDJSON", "wp_movies_10k.ndjson")
 CSV_PATH = "wiki_movie_plots_deduped.csv"
 # Metadata source: "csv" (wikimovies plots) or "imdb" (IMDb datasets)
 METADATA_SOURCE = "csv"

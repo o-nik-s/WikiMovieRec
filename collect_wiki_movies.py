@@ -255,12 +255,22 @@ def main():
                         help="Oldest year to include")
     args = parser.parse_args()
 
-    if args.years:
-        years = sorted(set(args.years), reverse=True)
-    else:
-        years = list(range(2026, args.min_year - 1, -1))
-
-    collect_movies(years, args.max_movies, args.out)
+    # Prevent parallel runs (important for cron): use a lock file.
+    lock_path = args.out + ".lock"
+    if os.path.exists(lock_path):
+        print(f"Another collector is running ({lock_path} exists). Exiting.", flush=True)
+        return
+    with open(lock_path, "w", encoding="utf-8") as lf:
+        lf.write(str(os.getpid()))
+    try:
+        if args.years:
+            years = sorted(set(args.years), reverse=True)
+        else:
+            years = list(range(2026, args.min_year - 1, -1))
+        collect_movies(years, args.max_movies, args.out)
+    finally:
+        if os.path.exists(lock_path):
+            os.remove(lock_path)
 
 
 if __name__ == "__main__":

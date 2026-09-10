@@ -1,0 +1,26 @@
+import sys
+sys.path.append('src')
+import data_loader, preprocessor
+import pandas as pd
+
+movies_df = data_loader.load_ndjson()
+movies_df = preprocessor.build_features(movies_df)
+meta = data_loader.load_imdb()
+merged = preprocessor.merge_with_plots(movies_df, meta)
+print('Merged:', merged.shape)
+print()
+print('=== Missing metadata ===')
+no_year = merged['Year'].isna().sum()
+print('No year:', no_year, f'({no_year/len(merged)*100:.1f}%)')
+no_genre = (merged['GenreTokens'].apply(len) == 0).sum()
+print('No genre:', no_genre, f'({no_genre/len(merged)*100:.1f}%)')
+no_rating = merged['IMDb_Rating'].isna().sum()
+print('No rating:', no_rating, f'({no_rating/len(merged)*100:.1f}%)')
+no_dir = (merged['DirectorTokens'].apply(len) == 0).sum()
+print('No director:', no_dir)
+print()
+print('=== Links quality ===')
+no_links = (merged['Links'].apply(len) == 0).sum()
+print('Movies with no links:', no_links)
+print('Avg links per movie:', round(merged['Links'].apply(len).mean(), 1))
+print('Avg unique links:', round(merged['Links'].apply(lambda x: len(set(x))).mean(), 1))

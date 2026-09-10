@@ -19,7 +19,6 @@ from pydantic import BaseModel, Field
 from src.i18n import set_locale, lang as i18n_lang
 from src.model_cache import load_model, list_models as list_cached_models, DEFAULT_PRESET
 from src.ru_names import resolve_movie, EN_TO_RU, get_russian_name
-from unidecode import unidecode
 
 # ── Request models ───────────────────────────────────────────────────
 class RecommendRequest(BaseModel):
@@ -361,6 +360,12 @@ def create_app() -> FastAPI:
         _set_lang(lang)
         if _model is None:
             return _model_error()
+
+        if sample_n > pool_size:
+            return JSONResponse(
+                status_code=400,
+                content={"error": f"sample_n ({sample_n}) cannot exceed pool_size ({pool_size})"},
+            )
 
         names = [m.strip() for m in movies.split(",") if m.strip()]
         if not names:
